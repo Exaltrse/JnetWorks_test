@@ -2,6 +2,7 @@ package com.ushkov.services;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
@@ -23,22 +24,22 @@ public class PageNumberService {
     public static String reducePageNumbers(String pageNumbers){
         if(pageNumbers == null) throw new IllegalRequestParamException("List of page numbers must not be null.");
         if(pageNumbers.isEmpty()) throw new IllegalRequestParamException("List of page numbers must not be empty.");
+        //Convert requested string to list of page numbers.
         List<Integer> pageNumbersIntegerList = new ArrayList<>();
-        for(String s : pageNumbers.split(",")){
-            try{
-                pageNumbersIntegerList.add(Integer.parseInt(s));
-            }
-            catch (NumberFormatException ex){
-                throw new IncompatiblePageNumberFormatException(IncompatiblePageNumberFormatException.NOTDIGITPAGENUMBER);
-            }
+        try{
+            pageNumbersIntegerList = Arrays.stream(pageNumbers.split(",")).map(Integer::parseInt).sorted().collect(Collectors.toList());
         }
+        catch (NumberFormatException ex) {
+            throw new IncompatiblePageNumberFormatException(IncompatiblePageNumberFormatException.NOTDIGITPAGENUMBER);
+        }
+        //Return result if request contain only one page number.
         if(pageNumbersIntegerList.size()==1) return pageNumbersIntegerList.get(0).toString();
-        pageNumbersIntegerList = pageNumbersIntegerList.stream().sorted().collect(Collectors.toList());
-        if(pageNumbersIntegerList.get(0) == 0)
-            throw new IncompatiblePageNumberFormatException(IncompatiblePageNumberFormatException.ZEROPAGENUMBER);
-        if(pageNumbersIntegerList.get(0) < 0)
-            throw new IncompatiblePageNumberFormatException(IncompatiblePageNumberFormatException.NEGATIVEPAGENUMBER);
+        //Сhecking zero page number.
+        if(pageNumbersIntegerList.get(0) == 0) throw new IncompatiblePageNumberFormatException(IncompatiblePageNumberFormatException.ZEROPAGENUMBER);
+        //Сhecking negative page numbers.
+        if(pageNumbersIntegerList.get(0) < 0) throw new IncompatiblePageNumberFormatException(IncompatiblePageNumberFormatException.NEGATIVEPAGENUMBER);
 
+        //Using deque for access to begining and ending of queue.
         Deque<Integer> deque = new ArrayDeque<>();
         Iterator<Integer> iterator = pageNumbersIntegerList.listIterator();
         StringBuilder resultString = new StringBuilder();
@@ -46,48 +47,24 @@ public class PageNumberService {
             int i = iterator.next();
             if(deque.isEmpty()) deque.addLast(i);
             else{
-                if(iterator.hasNext()){
-                    if(i == deque.getLast() + 1) deque.addLast(i);
-                    else{
-                        if(i != deque.getLast()){
-                            if(deque.size()>1) {
-                                resultString.append(deque.getFirst());
-                                resultString.append("-");
-                                resultString.append(deque.getLast());
-                                resultString.append(",");
-                            }else{
-                                resultString.append(deque.getFirst());
-                                resultString.append(",");
-                            }
-                            deque = new ArrayDeque<>();
-                            deque.addLast(i);
-                        }
+                if(i == deque.getLast() + 1) deque.addLast(i); //Put next consecutive page number in queue.
+                else{
+                    if(i != deque.getLast()){
+                        //If next page number is not consecutive for previous page numbers:
+                        //- grouping numbers already containing in queue and add to result;
+                        //- "clear" queue;
+                        //- adding the new page number in the queue.
+                        if(deque.size()>1) resultString.append(deque.getFirst() + "-" + deque.getLast() + ",");
+                        else resultString.append(deque.getFirst() + ",");
+                        deque = new ArrayDeque<>();
+                        deque.addLast(i);
                     }
-                }else{
-                    if(i == deque.getLast() + 1) deque.addLast(i);
-                    else{
-                        if(i != deque.getLast()){
-                            if(deque.size()>1) {
-                                resultString.append(deque.getFirst());
-                                resultString.append("-");
-                                resultString.append(deque.getLast());
-                                resultString.append(",");
-                            }else{
-                                resultString.append(deque.getFirst());
-                                resultString.append(",");
-                            }
-                            deque = new ArrayDeque<>();
-                            deque.addLast(i);
-                        }
-                    }
-                    if(deque.size()>1){
-                        resultString.append(deque.getFirst());
-                        resultString.append("-");
-                        resultString.append(deque.getLast());
-                    }
-                    else{
-                        resultString.append(deque.getFirst());
-                    }
+                    //If the next page number is already in queue - do nothing.
+                }
+                //If it is the last iteration - put information from the queue to result.
+                if(!iterator.hasNext()){
+                    if(deque.size()>1) resultString.append(deque.getFirst() + "-" + deque.getLast());
+                    else resultString.append(deque.getFirst());
                 }
             }
         }
